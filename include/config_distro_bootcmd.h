@@ -327,6 +327,16 @@
 	"boot_script_dhcp=boot.scr.uimg\0" \
 	BOOTENV_BOOT_TARGETS \
 	\
+	"pdi_boot="							\
+		"if test -e mmc ${config_part} nextboot_a; then if test ! -e mmc ${config_part} nextboot_a_done; then setenv boot_from ${image_a_part}; fatwrite mmc ${config_part} 0x00500000 nextboot_a_done 1; fi; else if test -e mmc ${config_part} nextboot_b; then if test ! -e mmc ${config_part} nextboot_b_done; then setenv boot_from ${image_b_part}; fatwrite mmc ${config_part} 0x00500000 nextboot_b_done 1; fi; else if test -e mmc ${config_part} boot_a; then setenv boot_from ${image_a_part}; else setenv boot_from ${image_b_part}; fi; fi; fi; run pdi_boot_custom_extlinux\0" \
+	"config_part="							\
+       		"1:8\0"							\
+	"image_a_part="							\
+		"1:4\0"							\
+	"image_b_part="							\
+       		"1:6\0"							\
+	"pdi_boot_custom_extlinux="						\
+       		"echo Booting from ${boot_from}; sysboot mmc ${boot_from} any 0x00500000 /extlinux/extlinux.conf\0" \
 	"boot_extlinux="                                                  \
 		"sysboot ${devtype} ${devnum}:${distro_bootpart} any "    \
 			"${scriptaddr} ${prefix}extlinux/extlinux.conf\0" \
@@ -386,7 +396,7 @@
 		"done\0"
 
 #ifndef CONFIG_BOOTCOMMAND
-#define CONFIG_BOOTCOMMAND "run distro_bootcmd"
+#define CONFIG_BOOTCOMMAND "run pdi_boot"
 #endif
 
 #endif  /* _CONFIG_CMD_DISTRO_BOOTCMD_H */
