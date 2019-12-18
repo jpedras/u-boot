@@ -327,6 +327,7 @@
 	"boot_script_dhcp=boot.scr.uimg\0" \
 	BOOTENV_BOOT_TARGETS \
 	\
+	"bootdelay=1\0" \
 	"pdi_boot="							\
 		"if test -e mmc ${config_part} boot_b; then setenv boot_from ${image_b_part}; else if test -e mmc ${config_part} boot_a; then setenv boot_from ${image_a_part}; fi; fi; if test -e mmc ${config_part} nextboot_a; then if test ! -e mmc ${config_part} nextboot_a_done; then setenv boot_from ${image_a_part}; fatwrite mmc ${config_part} 0x00500000 nextboot_a_done 1; fi; else if test -e mmc ${config_part} nextboot_b; then if test ! -e mmc ${config_part} nextboot_b_done; then setenv boot_from ${image_b_part}; fatwrite mmc ${config_part} 0x00500000 nextboot_b_done 1; fi; fi; fi; run pdi_boot_custom_extlinux\0"					\
 	"config_part="							\
