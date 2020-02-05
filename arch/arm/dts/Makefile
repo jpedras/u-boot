@@ -31,7 +31,6 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3036-sdk.dtb \
 	rk3066a-mk808.dtb \
 	rk3126-evb.dtb \
-	rk3126-bnd-d708.dtb \
 	rk3128-evb.dtb \
 	rk3188-radxarock.dtb \
 	rk3288-evb.dtb \
@@ -45,8 +44,10 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-veyron-jerry.dtb \
 	rk3288-veyron-mickey.dtb \
 	rk3288-veyron-minnie.dtb \
+	rk3288-vyasa.dtb \
+	rk3308-evb.dtb \
 	rk3328-evb.dtb \
-	rk3328-roc-cc.dtb \
+	rk3328-firefly.dtb \
 	rk3368-lion.dtb \
 	rk3368-sheep.dtb \
 	rk3368-geekbox.dtb \

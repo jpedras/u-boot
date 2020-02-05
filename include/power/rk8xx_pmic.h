@@ -88,8 +88,6 @@ enum {
 	REG_BOOST_LDO9_SLP_VSEL,
 	REG_BOOST_CTRL,
 
-	REG_OUT_CTRL = 0x52,
-
 	/* Not sure what this does */
 	REG_DCDC_ILMAX			= 0x90,
 	REG_CHRG_COMP			= 0x9a,
@@ -173,6 +171,10 @@ enum {
 };
 
 enum {
+	RK817_REG_SYS_CFG3 = 0xf4,
+};
+
+enum {
 	RK816_REG_DCDC_EN1 = 0x23,
 	RK816_REG_DCDC_EN2,
 	RK816_REG_DCDC_SLP_EN,
@@ -184,11 +186,29 @@ enum {
 enum {
 	RK805_ID = 0x8050,
 	RK808_ID = 0x0000,
+	RK809_ID = 0x8090,
 	RK816_ID = 0x8160,
+	RK817_ID = 0x8170,
 	RK818_ID = 0x8180,
 };
 
+#define RK817_ID_MSB	0xed
+#define RK817_ID_LSB	0xee
 #define RK8XX_ID_MSK	0xfff0
+
+#define RK817_PMIC_SYS_CFG3	0xf4
+#define RK817_GPIO_INT_CFG	0xfe
+
+#define RK8XX_ON_SOURCE		0xae
+#define RK8XX_OFF_SOURCE	0xaf
+#define RK817_ON_SOURCE		0xf5
+#define RK817_OFF_SOURCE	0xf6
+
+struct reg_data {
+	u8 reg;
+	u8 val;
+	u8 mask;
+};
 
 struct rk8xx_reg_table {
 	char *name;

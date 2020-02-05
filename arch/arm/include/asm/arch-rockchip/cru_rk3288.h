@@ -30,6 +30,11 @@ struct rk3288_clk_priv {
 	struct rk3288_grf *grf;
 	struct rk3288_cru *cru;
 	ulong rate;
+	ulong armclk_hz;
+	ulong armclk_enter_hz;
+	ulong armclk_init_hz;
+	bool sync_kernel;
+	bool set_armclk_rate;
 };
 
 struct rk3288_cru {
@@ -60,6 +65,12 @@ struct rk3288_cru {
 	u32 cru_emmc_con[2];
 };
 check_member(rk3288_cru, cru_emmc_con[1], 0x021c);
+
+struct rk3288_clk_info {
+	unsigned long id;
+	char *name;
+	bool is_cru;
+};
 
 /* CRU_CLKSEL11_CON */
 enum {
@@ -131,6 +142,43 @@ enum {
 
 	SPI0_DIV_SHIFT		= 0,
 	SPI0_DIV_MASK		= 0x7f << SPI0_DIV_SHIFT,
+};
+
+/* CRU_CLKSEL27_CON */
+enum {
+	DCLK_VOP0_DIV_SHIFT	= 8,
+	DCLK_VOP0_DIV_MASK	= 0xff << DCLK_VOP0_DIV_SHIFT,
+	DCLK_VOP0_PLL_SHIFT	= 0,
+	DCLK_VOP0_PLL_MASK	= 3 << DCLK_VOP0_PLL_SHIFT,
+	DCLK_VOP0_SELECT_CPLL	= 0,
+	DCLK_VOP0_SELECT_GPLL	= 1,
+	DCLK_VOP0_SELECT_NPLL	= 2,
+};
+
+/* CRU_CLKSEL29_CON */
+enum {
+	DCLK_VOP1_DIV_SHIFT	= 8,
+	DCLK_VOP1_DIV_MASK	= 0xff << DCLK_VOP1_DIV_SHIFT,
+	DCLK_VOP1_PLL_SHIFT	= 6,
+	DCLK_VOP1_PLL_MASK	= 3 << DCLK_VOP1_PLL_SHIFT,
+	DCLK_VOP1_SELECT_CPLL	= 0,
+	DCLK_VOP1_SELECT_GPLL	= 1,
+	DCLK_VOP1_SELECT_NPLL	= 2,
+};
+
+/* CRU_CLKSEL31_CON */
+enum {
+	ACLK_VOP_SELECT_CPLL	= 0,
+	ACLK_VOP_SELECT_GPLL	= 1,
+	ACLK_VOP_SELECT_USB480	= 2,
+	ACLK_VOP1_PLL_SHIFT	= 14,
+	ACLK_VOP1_PLL_MASK	= 3 << ACLK_VOP1_PLL_SHIFT,
+	ACLK_VOP1_DIV_SHIFT	= 8,
+	ACLK_VOP1_DIV_MASK	= 0x1f << ACLK_VOP1_DIV_SHIFT,
+	ACLK_VOP0_PLL_SHIFT	= 6,
+	ACLK_VOP0_PLL_MASK	= 3 << ACLK_VOP0_PLL_SHIFT,
+	ACLK_VOP0_DIV_SHIFT	= 0,
+	ACLK_VOP0_DIV_MASK	= 0x1f << ACLK_VOP0_DIV_SHIFT,
 };
 
 /* CRU_CLKSEL37_CON */

@@ -10,6 +10,7 @@
 #include <dm.h>
 #include <dm/device-internal.h>
 #include <dm/lists.h>
+#include <dm/uclass-internal.h>
 
 static const char *if_typename_str[IF_TYPE_COUNT] = {
 	[IF_TYPE_IDE]		= "ide",
@@ -24,6 +25,10 @@ static const char *if_typename_str[IF_TYPE_COUNT] = {
 	[IF_TYPE_SYSTEMACE]	= "ace",
 	[IF_TYPE_NVME]		= "nvme",
 	[IF_TYPE_RKNAND]	= "rknand",
+	[IF_TYPE_SPINAND]	= "spinand",
+	[IF_TYPE_SPINOR]	= "spinor",
+	[IF_TYPE_RAMDISK]	= "ramdisk",
+
 };
 
 static enum uclass_id if_type_uclass_id[IF_TYPE_COUNT] = {
@@ -38,6 +43,9 @@ static enum uclass_id if_type_uclass_id[IF_TYPE_COUNT] = {
 	[IF_TYPE_HOST]		= UCLASS_ROOT,
 	[IF_TYPE_NVME]		= UCLASS_NVME,
 	[IF_TYPE_RKNAND]	= UCLASS_RKNAND,
+	[IF_TYPE_SPINAND]	= UCLASS_SPI_FLASH,
+	[IF_TYPE_SPINOR]	= UCLASS_SPI_FLASH,
+	[IF_TYPE_RAMDISK]	= UCLASS_RAMDISK,
 	[IF_TYPE_SYSTEMACE]	= UCLASS_INVALID,
 };
 
@@ -296,9 +304,6 @@ ulong blk_read_devnum(enum if_type if_type, int devnum, lbaint_t start,
 	if (IS_ERR_VALUE(n))
 		return n;
 
-	/* flush cache after read */
-	flush_cache((ulong)buffer, blkcnt * desc->blksz);
-
 	return n;
 }
 
@@ -336,7 +341,7 @@ int blk_first_device(int if_type, struct udevice **devp)
 	struct blk_desc *desc;
 	int ret;
 
-	ret = uclass_first_device(UCLASS_BLK, devp);
+	ret = uclass_find_first_device(UCLASS_BLK, devp);
 	if (ret)
 		return ret;
 	if (!*devp)
@@ -345,7 +350,7 @@ int blk_first_device(int if_type, struct udevice **devp)
 		desc = dev_get_uclass_platdata(*devp);
 		if (desc->if_type == if_type)
 			return 0;
-		ret = uclass_next_device(devp);
+		ret = uclass_find_next_device(devp);
 		if (ret)
 			return ret;
 	} while (*devp);
@@ -361,7 +366,7 @@ int blk_next_device(struct udevice **devp)
 	desc = dev_get_uclass_platdata(*devp);
 	if_type = desc->if_type;
 	do {
-		ret = uclass_next_device(devp);
+		ret = uclass_find_next_device(devp);
 		if (ret)
 			return ret;
 		if (!*devp)

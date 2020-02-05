@@ -8,12 +8,14 @@
 #include <common.h>
 #include <errno.h>
 #include <malloc.h>
-#include <fdtdec.h>
-#include <fdt_support.h>
 #include <asm/unaligned.h>
 #include <asm/io.h>
 #include <linux/list.h>
 #include <div64.h>
+#include <dm/device.h>
+#include <dm/read.h>
+#include <dm/uclass.h>
+#include <dm/uclass-id.h>
 
 #include "rockchip_display.h"
 #include "rockchip_crtc.h"
@@ -23,6 +25,7 @@
 
 /* Innosilicon MIPI D-PHY registers */
 #define INNO_PHY_LANE_CTRL	0x00000
+#define MIPI_BGPD		BIT(7)
 #define CLK_LANE_EN_MASK	BIT(6)
 #define DATA_LANE_3_EN_MASK	BIT(5)
 #define DATA_LANE_2_EN_MASK	BIT(4)
@@ -33,6 +36,8 @@
 #define DATA_LANE_2_EN		BIT(4)
 #define DATA_LANE_1_EN		BIT(3)
 #define DATA_LANE_0_EN		BIT(2)
+#define PWROK_BP		BIT(1)
+#define PWROK			BIT(0)
 #define INNO_PHY_POWER_CTRL	0x00004
 #define ANALOG_RESET_MASK	BIT(2)
 #define ANALOG_RESET		BIT(2)
@@ -55,6 +60,8 @@
 #define DIGITAL_RESET_MASK	BIT(0)
 #define DIGITAL_NORMAL		BIT(0)
 #define DIGITAL_RESET		0
+#define INNO_PHY_LVDS_CTRL	0x003ac
+#define LVDS_BGPD		BIT(0)
 
 #define INNO_CLOCK_LANE_REG_BASE	0x00100
 #define INNO_DATA_LANE_0_REG_BASE	0x00180
@@ -124,13 +131,10 @@ struct inno_mipi_dphy_timing {
 };
 
 struct inno_mipi_dphy {
-	const void *blob;
-	int node;
-	u32 regs;
-
+	struct udevice *dev;
+	void __iomem *regs;
 	unsigned int lane_mbps;
 	int lanes;
-	int bpp;
 };
 
 static const u32 lane_reg_offset[] = {
@@ -464,11 +468,33 @@ static inline void inno_mipi_dphy_pll_ldo_enable(struct inno_mipi_dphy *inno)
 			 PLL_POWER_ON | LDO_POWER_ON);
 }
 
-static int inno_mipi_dphy_power_on(struct display_state *state)
+static inline void inno_mipi_dphy_da_pwrok_enable(struct inno_mipi_dphy *inno)
 {
-	struct connector_state *conn_state = &state->conn_state;
-	struct inno_mipi_dphy *inno = conn_state->phy_private;
+	inno_update_bits(inno, INNO_PHY_LANE_CTRL, PWROK_BP | PWROK, PWROK);
+}
 
+static inline void inno_mipi_dphy_da_pwrok_disable(struct inno_mipi_dphy *inno)
+{
+	inno_update_bits(inno, INNO_PHY_LANE_CTRL, PWROK_BP | PWROK, PWROK_BP);
+}
+
+static inline void inno_mipi_dphy_bgpd_enable(struct inno_mipi_dphy *inno)
+{
+	inno_update_bits(inno, INNO_PHY_LANE_CTRL, MIPI_BGPD, 0);
+}
+
+static inline void inno_mipi_dphy_bgpd_disable(struct inno_mipi_dphy *inno)
+{
+	inno_update_bits(inno, INNO_PHY_LANE_CTRL, MIPI_BGPD, MIPI_BGPD);
+	inno_update_bits(inno, INNO_PHY_LVDS_CTRL, LVDS_BGPD, LVDS_BGPD);
+}
+
+static int inno_mipi_dphy_power_on(struct rockchip_phy *phy)
+{
+	struct inno_mipi_dphy *inno = dev_get_priv(phy->dev);
+
+	inno_mipi_dphy_bgpd_enable(inno);
+	inno_mipi_dphy_da_pwrok_enable(inno);
 	inno_mipi_dphy_pll_ldo_enable(inno);
 	inno_mipi_dphy_lane_enable(inno);
 	inno_mipi_dphy_reset(inno);
@@ -483,22 +509,22 @@ static inline void inno_mipi_dphy_lane_disable(struct inno_mipi_dphy *inno)
 	inno_update_bits(inno, INNO_PHY_LANE_CTRL, 0x7c, 0x00);
 }
 
-static int inno_mipi_dphy_power_off(struct display_state *state)
+static int inno_mipi_dphy_power_off(struct rockchip_phy *phy)
 {
-	struct connector_state *conn_state = &state->conn_state;
-	struct inno_mipi_dphy *inno = conn_state->phy_private;
+	struct inno_mipi_dphy *inno = dev_get_priv(phy->dev);
 
 	inno_mipi_dphy_lane_disable(inno);
 	inno_mipi_dphy_pll_ldo_disable(inno);
+	inno_mipi_dphy_da_pwrok_disable(inno);
+	inno_mipi_dphy_bgpd_disable(inno);
 
 	return 0;
 }
 
-static unsigned long inno_mipi_dphy_set_pll(struct display_state *state,
+static unsigned long inno_mipi_dphy_set_pll(struct rockchip_phy *phy,
 					    unsigned long rate)
 {
-	struct connector_state *conn_state = &state->conn_state;
-	struct inno_mipi_dphy *inno = conn_state->phy_private;
+	struct inno_mipi_dphy *inno = dev_get_priv(phy->dev);
 	unsigned long fin, fout;
 	u16 fbdiv = 0;
 	u8 prediv = 0;
@@ -507,7 +533,7 @@ static unsigned long inno_mipi_dphy_set_pll(struct display_state *state,
 	fin = 24000000;
 	fout = inno_mipi_dphy_pll_round_rate(fin, rate, &prediv, &fbdiv);
 
-	printf("%s: fin=%lu, fout=%lu, prediv=%u, fbdiv=%u\n",
+	debug("%s: fin=%lu, fout=%lu, prediv=%u, fbdiv=%u\n",
 	       __func__, fin, fout, prediv, fbdiv);
 
 	m = FBDIV_HI_MASK | PREDIV_MASK;
@@ -523,61 +549,66 @@ static unsigned long inno_mipi_dphy_set_pll(struct display_state *state,
 	return fout;
 }
 
-static int inno_mipi_dphy_parse_dt(int panel_node, struct inno_mipi_dphy *inno)
+static int inno_mipi_dphy_parse_dt(struct inno_mipi_dphy *inno)
 {
-	const void *blob = inno->blob;
-	int format;
+	struct udevice *dev = inno->dev;
 
-	inno->lanes = fdtdec_get_int(blob, panel_node, "dsi,lanes", -1);
-	if (inno->lanes < 0)
-		inno->lanes = 4;
-
-	format = fdtdec_get_int(blob, panel_node, "dsi,format", -1);
-	inno->bpp = mipi_dsi_pixel_format_to_bpp(format);
-	if (inno->bpp < 0)
-		inno->bpp = 24;
+	inno->lanes = ofnode_read_u32_default(dev->node, "inno,lanes", 4);
 
 	return 0;
 }
 
-static int inno_mipi_dphy_init(struct display_state *state)
+static int inno_mipi_dphy_init(struct rockchip_phy *phy)
 {
-	const void *blob = state->blob;
-	struct connector_state *conn_state = &state->conn_state;
-	struct panel_state *panel_state = &state->panel_state;
-	int node = conn_state->phy_node;
-	int panel_node = panel_state->node;
-	struct inno_mipi_dphy *inno;
+	struct inno_mipi_dphy *inno = dev_get_priv(phy->dev);
 	int ret;
 
-	inno = malloc(sizeof(*inno));
-	if (!inno)
-		return -ENOMEM;
-
-	inno->blob = blob;
-	inno->node = node;
-
-	ret = inno_mipi_dphy_parse_dt(panel_node, inno);
+	ret = inno_mipi_dphy_parse_dt(inno);
 	if (ret) {
 		printf("%s: failed to parse DT\n", __func__);
 		return ret;
 	}
 
-	inno->regs = fdtdec_get_addr_size_auto_noparent(blob, node, "reg",
-							0, NULL, false);
-	if (inno->regs == FDT_ADDR_T_NONE) {
-		printf("%s: failed to get mipi phy address\n", __func__);
-		return -ENOMEM;
-	}
-
-	conn_state->phy_private = inno;
+	inno->regs = dev_read_addr_ptr(inno->dev);
 
 	return 0;
 }
 
-const struct rockchip_phy_funcs inno_mipi_dphy_funcs = {
+static const struct rockchip_phy_funcs inno_mipi_dphy_funcs = {
 	.init = inno_mipi_dphy_init,
 	.power_on = inno_mipi_dphy_power_on,
 	.power_off = inno_mipi_dphy_power_off,
 	.set_pll = inno_mipi_dphy_set_pll,
+};
+
+static struct rockchip_phy inno_mipi_dphy_driver_data = {
+	 .funcs = &inno_mipi_dphy_funcs,
+};
+
+static const struct udevice_id inno_mipi_dphy_ids[] = {
+	{
+		.compatible = "rockchip,rv1108-mipi-dphy",
+		.data = (ulong)&inno_mipi_dphy_driver_data,
+	},
+	{}
+};
+
+static int inno_mipi_dphy_probe(struct udevice *dev)
+{
+	struct inno_mipi_dphy *inno = dev_get_priv(dev);
+	struct rockchip_phy *phy =
+		(struct rockchip_phy *)dev_get_driver_data(dev);
+
+	inno->dev = dev;
+	phy->dev = dev;
+
+	return 0;
+}
+
+U_BOOT_DRIVER(inno_mipi_dphy) = {
+	.name = "inno_mipi_dphy",
+	.id = UCLASS_PHY,
+	.of_match = inno_mipi_dphy_ids,
+	.probe = inno_mipi_dphy_probe,
+	.priv_auto_alloc_size = sizeof(struct inno_mipi_dphy),
 };

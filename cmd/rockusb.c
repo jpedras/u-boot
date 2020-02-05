@@ -140,6 +140,7 @@ static int do_rkusb(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 	unsigned int controller_index;
 	int rc;
 	int cable_ready_timeout __maybe_unused;
+	const char *s;
 
 	if (argc != 4)
 		return CMD_RET_USAGE;
@@ -156,21 +157,25 @@ static int do_rkusb(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 	controller_index = (unsigned int)(simple_strtoul(
 				usb_controller,	NULL, 0));
 	if (board_usb_init(controller_index, USB_INIT_DEVICE)) {
-		error("Couldn't init USB controller.");
+		pr_err("Couldn't init USB controller.");
 		rc = CMD_RET_FAILURE;
 		goto cleanup_rkusb;
 	}
 
 	rc = fsg_init(g_rkusb->ums, g_rkusb->ums_cnt);
 	if (rc) {
-		error("fsg_init failed");
+		pr_err("fsg_init failed");
 		rc = CMD_RET_FAILURE;
 		goto cleanup_board;
 	}
 
+	s = env_get("serial#");
+	if (s)
+		g_dnl_set_serialnumber((char *)s);
+
 	rc = g_dnl_register("rkusb_ums_dnl");
 	if (rc) {
-		error("g_dnl_register failed");
+		pr_err("g_dnl_register failed");
 		rc = CMD_RET_FAILURE;
 		goto cleanup_board;
 	}

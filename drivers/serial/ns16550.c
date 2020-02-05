@@ -254,6 +254,13 @@ static inline void _debug_uart_init(void)
 	 */
 	baud_divisor = ns16550_calc_divisor(com_port, CONFIG_DEBUG_UART_CLOCK,
 					    CONFIG_BAUDRATE);
+
+	if (gd && gd->serial.using_pre_serial) {
+		com_port = (struct NS16550 *)gd->serial.addr;
+		baud_divisor = ns16550_calc_divisor(com_port,
+			CONFIG_DEBUG_UART_CLOCK, gd->serial.baudrate);
+	}
+
 	serial_dout(&com_port->ier, CONFIG_SYS_NS16550_IER);
 	serial_dout(&com_port->mcr, UART_MCRVAL);
 	serial_dout(&com_port->fcr, UART_FCR_DEFVAL);
@@ -267,6 +274,9 @@ static inline void _debug_uart_init(void)
 static inline void _debug_uart_putc(int ch)
 {
 	struct NS16550 *com_port = (struct NS16550 *)CONFIG_DEBUG_UART_BASE;
+
+	if (gd && gd->serial.using_pre_serial)
+		com_port = (struct NS16550 *)gd->serial.addr;
 
 	while (!(serial_din(&com_port->lsr) & UART_LSR_THRE))
 		;
@@ -288,6 +298,13 @@ static inline void _debug_uart_init(void)
 
 	baud_divisor = ns16550_calc_divisor(com_port, CONFIG_DEBUG_UART_CLOCK,
 					    CONFIG_BAUDRATE);
+
+	if (gd && gd->serial.using_pre_serial) {
+		com_port = (struct NS16550 *)gd->serial.addr;
+		baud_divisor = ns16550_calc_divisor(com_port,
+			CONFIG_DEBUG_UART_CLOCK, gd->serial.baudrate);
+	}
+
 	serial_dout(&com_port->ier, CONFIG_SYS_NS16550_IER);
 	serial_dout(&com_port->mdr1, 0x7);
 	serial_dout(&com_port->mcr, UART_MCRVAL);
@@ -304,6 +321,9 @@ static inline void _debug_uart_putc(int ch)
 {
 	struct NS16550 *com_port = (struct NS16550 *)CONFIG_DEBUG_UART_BASE;
 
+	if (gd && gd->serial.using_pre_serial)
+		com_port = (struct NS16550 *)gd->serial.addr;
+
 	while (!(serial_din(&com_port->lsr) & UART_LSR_THRE))
 		;
 	serial_dout(&com_port->thr, ch);
@@ -318,8 +338,20 @@ static int ns16550_serial_putc(struct udevice *dev, const char ch)
 {
 	struct NS16550 *const com_port = dev_get_priv(dev);
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+	/*
+	 * Use fifo function.
+	 *
+	 * UART_USR: bit1 trans_fifo_not_full:
+	 *	0 = Transmit FIFO is full;
+	 *	1 = Transmit FIFO is not full;
+	 */
+	while (!(serial_in(&com_port->rbr + 0x1f) & 0x02))
+		;
+#else
 	if (!(serial_in(&com_port->lsr) & UART_LSR_THRE))
 		return -EAGAIN;
+#endif
 	serial_out(ch, &com_port->thr);
 
 	/*
@@ -330,6 +362,20 @@ static int ns16550_serial_putc(struct udevice *dev, const char ch)
 	 */
 	if (ch == '\n')
 		WATCHDOG_RESET();
+
+#ifdef CONFIG_ARCH_ROCKCHIP
+	/*
+	 * Wait fifo flush.
+	 *
+	 * UART_USR: bit2 trans_fifo_empty:
+	 *	0 = Transmit FIFO is not empty
+	 *	1 = Transmit FIFO is empty
+	 */
+	if (gd->flags & GD_FLG_OS_RUN) {
+		while (!(serial_in(&com_port->rbr + 0x1f) & 0x04))
+			;
+	}
+#endif
 
 	return 0;
 }
@@ -430,6 +476,10 @@ int ns16550_serial_ofdata_to_platdata(struct udevice *dev)
 #ifdef CONFIG_SYS_NS16550_PORT_MAPPED
 	plat->base = addr;
 #else
+
+	if (gd && gd->serial.using_pre_serial)
+		addr = gd->serial.addr;
+
 	plat->base = (unsigned long)map_physmem(addr, 0, MAP_NOCACHE);
 #endif
 
@@ -443,6 +493,10 @@ int ns16550_serial_ofdata_to_platdata(struct udevice *dev)
 			plat->clock = err;
 	} else if (err != -ENOENT && err != -ENODEV && err != -ENOSYS) {
 		debug("ns16550 failed to get clock\n");
+#ifdef CONFIG_USING_KERNEL_DTB
+/* With kernel dtb support, serial ofnode not able to get cru phandle */
+		if(err != -EINVAL)
+#endif
 		return err;
 	}
 
@@ -469,6 +523,7 @@ const struct dm_serial_ops ns16550_serial_ops = {
 	.setbrg = ns16550_serial_setbrg,
 };
 
+#if CONFIG_IS_ENABLED(SERIAL_PRESENT)
 #if CONFIG_IS_ENABLED(OF_CONTROL) && !CONFIG_IS_ENABLED(OF_PLATDATA)
 /*
  * Please consider existing compatible strings before adding a new
@@ -490,8 +545,6 @@ static const struct udevice_id ns16550_serial_ids[] = {
 	{}
 };
 #endif /* OF_CONTROL && !OF_PLATDATA */
-
-#if CONFIG_IS_ENABLED(SERIAL_PRESENT)
 
 /* TODO(sjg@chromium.org): Integrate this into a macro like CONFIG_IS_ENABLED */
 #if !defined(CONFIG_TPL_BUILD) || defined(CONFIG_TPL_DM_SERIAL)

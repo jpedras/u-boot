@@ -162,6 +162,28 @@ int irq_set_irq_type(int irq, unsigned int type)
 		return gpio_irq_chip->irq_set_type(irq, type);
 }
 
+int irq_revert_irq_type(int irq)
+{
+	if (irq_bad(irq))
+		return -EINVAL;
+
+	if (irq < PLATFORM_GIC_IRQS_NR)
+		return 0;
+	else
+		return gpio_irq_chip->irq_revert_type(irq);
+}
+
+int irq_get_gpio_level(int irq)
+{
+	if (irq_bad(irq))
+		return -EINVAL;
+
+	if (irq < PLATFORM_GIC_IRQS_NR)
+		return 0;
+	else
+		return gpio_irq_chip->irq_get_gpio_level(irq);
+}
+
 void irq_install_handler(int irq, interrupt_handler_t *handler, void *data)
 {
 	if (irq_bad(irq))
@@ -221,6 +243,11 @@ static int cpu_local_irq_disable(void)
 
 void do_irq(struct pt_regs *pt_regs, unsigned int esr)
 {
+#ifdef CONFIG_ROCKCHIP_DEBUGGER
+	printf("\n>>> Rockchip Debugger:\n");
+	show_regs(pt_regs);
+#endif
+
 	_do_generic_irq_handler();
 }
 #else
@@ -250,6 +277,11 @@ static int cpu_local_irq_disable(void)
 
 void do_irq(struct pt_regs *pt_regs)
 {
+#ifdef CONFIG_ROCKCHIP_DEBUGGER
+	printf("\n>>> Rockchp Debugger:\n");
+	show_regs(pt_regs);
+#endif
+
 	_do_generic_irq_handler();
 }
 #endif

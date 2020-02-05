@@ -46,6 +46,7 @@ ifdef CONFIG_POST
 obj-$(CONFIG_CMD_DIAG) += diag.o
 endif
 obj-$(CONFIG_CMD_DISPLAY) += display.o
+obj-$(CONFIG_CMD_DTIMG) += dtimg.o
 obj-$(CONFIG_CMD_ECHO) += echo.o
 obj-$(CONFIG_ENV_IS_IN_EEPROM) += eeprom.o
 obj-$(CONFIG_CMD_EEPROM) += eeprom.o
@@ -81,10 +82,12 @@ obj-$(CONFIG_CMD_LED) += led.o
 obj-$(CONFIG_CMD_LICENSE) += license.o
 obj-y += load.o
 obj-$(CONFIG_CMD_LOAD_ANDROID) += load_android.o android_cmds.o
-obj-$(CONFIG_LOGBUFFER) += log.o
+obj-$(CONFIG_CMD_LOG) += log.o
 obj-$(CONFIG_ID_EEPROM) += mac.o
 obj-$(CONFIG_CMD_MD5SUM) += md5sum.o
 obj-$(CONFIG_CMD_MEMORY) += mem.o
+obj-$(CONFIG_CMD_MEMTESTER) += memtester/
+obj-$(CONFIG_CMD_DDR_TEST_TOOL) += ddr_tool/
 obj-$(CONFIG_CMD_IO) += io.o
 obj-$(CONFIG_CMD_MFSL) += mfsl.o
 obj-$(CONFIG_CMD_MII) += mii.o
@@ -115,6 +118,7 @@ obj-$(CONFIG_CMD_SATA) += sata.o
 obj-$(CONFIG_CMD_NVME) += nvme.o
 obj-$(CONFIG_CMD_ROCKUSB) += rockusb.o
 obj-$(CONFIG_CMD_RKNAND) += rknand.o
+obj-$(CONFIG_CMD_RKSFC) += rksfc.o
 obj-$(CONFIG_CMD_SF) += sf.o
 obj-$(CONFIG_CMD_SCSI) += scsi.o disk.o
 obj-$(CONFIG_CMD_SHA1SUM) += sha1sum.o
@@ -155,6 +159,7 @@ obj-$(CONFIG_CMD_ETHSW) += ethsw.o
 # Power
 obj-$(CONFIG_CMD_PMIC) += pmic.o
 obj-$(CONFIG_CMD_REGULATOR) += regulator.o
+obj-$(CONFIG_CMD_DVFS) += dvfs.o
 
 obj-$(CONFIG_CMD_BLOB) += blob.o
 endif # !CONFIG_SPL_BUILD

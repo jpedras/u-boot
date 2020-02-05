@@ -5,18 +5,11 @@ choice
 
 config TARGET_EVB_RK3328
 	bool "RK3328 evaluation board"
+	select BOARD_LATE_INIT
 	help
 	  RK3328evb is a evaluation board for Rockchip rk3328,
 	  with full function and phisical connectors support like
 	  usb2.0 host ports, LVDS, JTAG, MAC, SDcard, HDMI, USB-2-serial...
-
-config TARGET_ROC_RK3328_CC
-	bool "ROC-RK3328-CC board, "
-	select BOARD_LATE_INIT
-	help
-  	  ROC-RK3328-CC is a Raspberry Pi-2 sized 4K60P HDR Media Board Computer
-  	  powered by Rockchip RK3328 Quad-Core ARM Cortex A53 64-Bit Processor
-  	  and support up to 4GB 2133MHz DDR4 memory.
 
 endchoice
 
@@ -27,6 +20,5 @@ config SYS_MALLOC_F_LEN
 	default 0x0800
 
 source "board/rockchip/evb_rk3328/Kconfig"
-source "board/rockchip/roc_rk3328_cc/Kconfig"
 
 endif

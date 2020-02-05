@@ -40,21 +40,6 @@ config ENV_IS_NOWHERE
 	  stored. U-Boot will therefore always start up with a default
 	  environment.
 
-config ENV_IS_IN_DATAFLASH
-	bool "Environment in dataflash"
-	depends on !CHAIN_OF_TRUST
-	help
-	  Define this if you have a DataFlash memory device which you
-	  want to use for the environment.
-
-	  - CONFIG_ENV_OFFSET:
-	  - CONFIG_ENV_ADDR:
-	  - CONFIG_ENV_SIZE:
-
-	  These three #defines specify the offset and size of the
-	  environment area within the total memory of your DataFlash placed
-	  at the specified address.
-
 config ENV_IS_IN_EEPROM
 	bool "Environment in EEPROM"
 	depends on !CHAIN_OF_TRUST
@@ -447,6 +432,24 @@ config ENV_UBI_VOLUME
 	depends on ENV_IS_IN_UBI
 	help
 	  Name of the volume that you want to store the environment in.
+
+endif
+
+if ARCH_ROCKCHIP
+
+config ENV_OFFSET
+	hex
+	depends on !ENV_IS_IN_UBI
+	depends on !ENV_IS_NOWHERE
+	default 0x3f8000
+	help
+	  Offset from the start of the device (or partition)
+
+config ENV_SIZE
+	hex
+	default 0x8000
+	help
+	  Size of the environment storage area
 
 endif
 

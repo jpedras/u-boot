@@ -147,7 +147,7 @@ static int do_mmc_testrpmb(cmd_tbl_t *cmdtp,
 	uint64_t value;
 	trusty_write_rollback_index(0x87654321, 0x1122334455667788);
 	trusty_read_rollback_index(0x87654321, &value);
-	debug("sizeof(value) %x\n ", sizeof(value));
+	debug("sizeof(value) %zu\n ", sizeof(value));
 	if (value == 0x1122334455667788)
 		printf("good ! value==0x1122334455667788\n ");
 	else
@@ -188,15 +188,6 @@ static int do_mmc_testefuse(cmd_tbl_t *cmdtp,
 	trusty_write_attribute_hash(buf32, 8);
 
 	trusty_read_attribute_hash(outbuf32, 8);
-
-	printf(" 0x%x  0x%x  0x%x  0x%x \n",
-		outbuf32[0], outbuf32[1], outbuf32[2], outbuf32[3]);
-	printf(" 0x%x  0x%x  0x%x  0x%x \n",
-		outbuf32[4], outbuf32[5], outbuf32[6], outbuf32[7]);
-
-	trusty_write_vbootkey_hash(buf32, 8);
-
-	trusty_read_vbootkey_hash(outbuf32, 8);
 
 	printf(" 0x%x  0x%x  0x%x  0x%x \n",
 		outbuf32[0], outbuf32[1], outbuf32[2], outbuf32[3]);
@@ -463,8 +454,6 @@ static int do_mmc_read(cmd_tbl_t *cmdtp, int flag,
 	       curr_device, blk, cnt);
 
 	n = blk_dread(mmc_get_blk_desc(mmc), blk, cnt, addr);
-	/* flush cache after read */
-	flush_cache((ulong)addr, cnt * 512); /* FIXME */
 	printf("%d blocks read: %s\n", n, (n == cnt) ? "OK" : "ERROR");
 
 	return (n == cnt) ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
@@ -579,7 +568,7 @@ static int do_mmc_dev(cmd_tbl_t *cmdtp, int flag,
 		return CMD_RET_USAGE;
 	}
 
-	mmc = init_mmc_device(dev, true);
+	mmc = init_mmc_device(dev, false);
 	if (!mmc)
 		return CMD_RET_FAILURE;
 

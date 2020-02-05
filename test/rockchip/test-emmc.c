@@ -7,8 +7,6 @@
 #include <asm/io.h>
 #include <cli.h>
 #include <common.h>
-#include <irq-generic.h>
-#include <irq-platform.h>
 #include <linux/compat.h>
 #include <malloc.h>
 #include "test-rockchip.h"
@@ -69,7 +67,7 @@ int board_emmc_test(int argc, char * const argv[])
 	/* 2. Prepare and start cli command */
 
 	snprintf(cmd_mmc, sizeof(cmd_mmc), "mmc write 0x%x 0x%x 0x%x",
-		 (u32)write_buffer, lba, blocks);
+		 (u32)(ulong)write_buffer, lba, blocks);
 	ts = get_timer(0);
 	err = cli_simple_run_command(cmd_mmc, 0);
 	ts = get_timer(0) - ts;
@@ -80,7 +78,7 @@ int board_emmc_test(int argc, char * const argv[])
 		blocks / 2048, ts, (blocks >> 1) / ts);
 
 	snprintf(cmd_mmc, sizeof(cmd_mmc), "mmc read 0x%x 0x%x 0x%x",
-		 (u32)read_buffer, lba, blocks);
+		 (u32)(ulong)read_buffer, lba, blocks);
 	ts = get_timer(0);
 	err = cli_simple_run_command(cmd_mmc, 0);
 	ts = get_timer(0) - ts;

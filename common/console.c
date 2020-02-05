@@ -19,6 +19,7 @@
 #include <exports.h>
 #include <environment.h>
 #include <watchdog.h>
+#include <vsprintf.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -411,6 +412,13 @@ int getc(void)
 
 int tstc(void)
 {
+/* Don't allow drivers call tstc() to do some "exit" event(maybe enter hush) */
+#if defined(CONFIG_ARCH_ROCKCHIP) && \
+    defined(CONFIG_AVB_VBMETA_PUBLIC_KEY_VALIDATE) && \
+    defined(CONFIG_BOOTDELAY) && (CONFIG_BOOTDELAY <= 0)
+	return 0;
+#endif
+
 #ifdef CONFIG_DISABLE_CONSOLE
 	if (gd->flags & GD_FLG_DISABLE_CONSOLE)
 		return 0;
@@ -516,11 +524,51 @@ void putc(const char c)
 	}
 }
 
+#if (!defined(CONFIG_SPL_BUILD) && defined(CONFIG_BOOTSTAGE_PRINTF_TIMESTAMP))
+static void vspfunc(char *buf, size_t size, char *format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	vsnprintf(buf, size, format, ap);
+	va_end(ap);
+}
+
+void puts(const char *s)
+{
+	unsigned long ts_sec, ts_msec, ticks;
+	char pr_timestamp[32], *p;
+
+	while (*s) {
+		if (*s == '\n') {
+			gd->new_line = 1;
+			putc(*s++);
+			continue;
+		}
+
+		if (gd->new_line) {
+			gd->new_line = 0;
+			ticks = (get_ticks() / 24ULL);
+			ts_sec = ticks / 1000000;
+			ts_msec = ticks % 1000000;
+			vspfunc(pr_timestamp, sizeof(pr_timestamp),
+				"[%5lu.%06lu] ", ts_sec, ts_msec);
+			p = pr_timestamp;
+			while (*p)
+				putc(*p++);
+		}
+
+		putc(*s++);
+	}
+}
+#else
 void puts(const char *s)
 {
 	while (*s)
 		putc(*s++);
 }
+#endif
+
 
 #ifdef CONFIG_CONSOLE_RECORD
 int console_record_init(void)
@@ -553,6 +601,12 @@ static int ctrlc_disabled = 0;	/* see disable_ctrl() */
 static int ctrlc_was_pressed = 0;
 int ctrlc(void)
 {
+/* Don't allow drivers call ctrlc() to do some "exit" event(maybe enter hush) */
+#if defined(CONFIG_ARCH_ROCKCHIP) && \
+    defined(CONFIG_AVB_VBMETA_PUBLIC_KEY_VALIDATE)
+	return 0;
+#endif
+
 #ifndef CONFIG_SANDBOX
 	if (!ctrlc_disabled && gd->have_console) {
 		if (tstc()) {
@@ -666,10 +720,12 @@ int console_assign(int file, const char *devname)
 static void console_update_silent(void)
 {
 #ifdef CONFIG_SILENT_CONSOLE
-	if (env_get("silent") != NULL)
+	if (env_get("silent") != NULL) {
+		printf("U-Boot: enable slient console\n");
 		gd->flags |= GD_FLG_SILENT;
-	else
+	} else {
 		gd->flags &= ~GD_FLG_SILENT;
+	}
 #endif
 }
 

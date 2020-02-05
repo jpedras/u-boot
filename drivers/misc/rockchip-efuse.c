@@ -16,14 +16,6 @@
 #include <linux/delay.h>
 #include <misc.h>
 
-#define RK3328_INT_CON	0x0014
-#define RK3328_INT_STATUS	0x0018
-#define RK3328_DOUT		0x0020
-#define RK3328_AUTO_CTRL	0x0024
-#define RK3328_INT_FINISH	BIT(0)
-#define RK3328_AUTO_ENB		BIT(0)
-#define RK3328_AUTO_RD		BIT(1)
-
 #define RK3399_A_SHIFT          16
 #define RK3399_A_MASK           0x3ff
 #define RK3399_NFUSES           32
@@ -45,6 +37,13 @@
 #define RK3288_STROBE           BIT(1)
 #define RK3288_CSB              BIT(0)
 
+#define RK3328_INT_STATUS	0x0018
+#define RK3328_DOUT		0x0020
+#define RK3328_AUTO_CTRL	0x0024
+#define RK3328_INT_FINISH	BIT(0)
+#define RK3328_AUTO_ENB		BIT(0)
+#define RK3328_AUTO_RD		BIT(1)
+
 typedef int (*EFUSE_READ)(struct udevice *dev, int offset, void *buf, int size);
 
 struct rockchip_efuse_regs {
@@ -55,6 +54,10 @@ struct rockchip_efuse_regs {
 	u32 jtag_pass; /* 0x10  JTAG password */
 	u32 strobe_finish_ctrl;
 		       /* 0x14	efuse strobe finish control register */
+	u32 int_status;/* 0x18 */
+	u32 reserved;  /* 0x1c */
+	u32 dout2;     /* 0x20 */
+	u32 auto_ctrl; /* 0x24 */
 };
 
 struct rockchip_efuse_platdata {
@@ -102,49 +105,6 @@ U_BOOT_CMD(
 	""
 );
 #endif
-
-static int rockchip_rk3328_efuse_read(struct udevice *dev, int offset,
-				      void *buf, int size)
-{
-	struct rockchip_efuse_platdata *plat = dev_get_platdata(dev);
-
-	unsigned int addr_start, addr_end, addr_offset;
-	u32 out_value, status;
-	u8  bytes[RK3399_NFUSES * RK3399_BYTES_PER_FUSE];
-	int i = 0;
-	u32 addr;
-
-	/* 128 Byte efuse, 96 Byte for secure, 32 Byte for non-secure */
-	offset += 96;
-
-	addr_start = offset / RK3399_BYTES_PER_FUSE;
-	addr_offset = offset % RK3399_BYTES_PER_FUSE;
-	addr_end = DIV_ROUND_UP(offset + size, RK3399_BYTES_PER_FUSE);
-
-	/* cap to the size of the efuse block */
-	if (addr_end > RK3399_NFUSES)
-		addr_end = RK3399_NFUSES;
-
-	for (addr = addr_start; addr < addr_end; addr++) {
-		writel(RK3328_AUTO_RD | RK3328_AUTO_ENB |
-		       ((addr & RK3399_A_MASK) << RK3399_A_SHIFT),
-		       plat->base + RK3328_AUTO_CTRL);
-		udelay(10);
-		status = readl(plat->base + RK3328_INT_STATUS);
-		if (!(status & RK3328_INT_FINISH)) {
-			return -EIO;
-		}
-		out_value = readl(plat->base + RK3328_DOUT);
-		writel(RK3328_INT_FINISH, plat->base + RK3328_INT_STATUS);
-
-		memcpy(&bytes[i], &out_value, RK3399_BYTES_PER_FUSE);
-		i += RK3399_BYTES_PER_FUSE;
-	}
-
-	memcpy(buf, bytes + addr_offset, size);
-
-	return 0;
-}
 
 static int rockchip_rk3399_efuse_read(struct udevice *dev, int offset,
 				      void *buf, int size)
@@ -233,6 +193,57 @@ static int rockchip_rk3288_efuse_read(struct udevice *dev, int offset,
 	return 0;
 }
 
+static int rockchip_rk3328_efuse_read(struct udevice *dev, int offset,
+				      void *buf, int size)
+{
+	struct rockchip_efuse_platdata *plat = dev_get_platdata(dev);
+	struct rockchip_efuse_regs *efuse =
+		(struct rockchip_efuse_regs *)plat->base;
+	unsigned int addr_start, addr_end, addr_offset, addr_len;
+	u32 out_value, status;
+	u8 *buffer;
+	int ret = 0, i = 0, j = 0;
+
+	/* Max non-secure Byte */
+	if (size > 32)
+		size = 32;
+
+	/* 128 Byte efuse, 96 Byte for secure, 32 Byte for non-secure */
+	offset += 96;
+	addr_start = rounddown(offset, RK3399_BYTES_PER_FUSE) /
+						RK3399_BYTES_PER_FUSE;
+	addr_end = roundup(offset + size, RK3399_BYTES_PER_FUSE) /
+						RK3399_BYTES_PER_FUSE;
+	addr_offset = offset % RK3399_BYTES_PER_FUSE;
+	addr_len = addr_end - addr_start;
+
+	buffer = calloc(1, sizeof(*buffer) * addr_len * RK3399_BYTES_PER_FUSE);
+	if (!buffer)
+		return -ENOMEM;
+
+	for (j = 0; j < addr_len; j++) {
+		writel(RK3328_AUTO_RD | RK3328_AUTO_ENB |
+		       ((addr_start++ & RK3399_A_MASK) << RK3399_A_SHIFT),
+		         &efuse->auto_ctrl);
+		udelay(5);
+		status = readl(&efuse->int_status);
+		if (!(status & RK3328_INT_FINISH)) {
+			ret = -EIO;
+			goto err;
+		}
+		out_value = readl(&efuse->dout2);
+		writel(RK3328_INT_FINISH, &efuse->int_status);
+
+		memcpy(&buffer[i], &out_value, RK3399_BYTES_PER_FUSE);
+		i += RK3399_BYTES_PER_FUSE;
+	}
+	memcpy(buf, buffer + addr_offset, size);
+err:
+	free(buffer);
+
+	return ret;
+}
+
 static int rockchip_efuse_read(struct udevice *dev, int offset,
 			       void *buf, int size)
 {
@@ -253,7 +264,7 @@ static int rockchip_efuse_ofdata_to_platdata(struct udevice *dev)
 {
 	struct rockchip_efuse_platdata *plat = dev_get_platdata(dev);
 
-	plat->base = (void *)dev_read_addr(dev);
+	plat->base = dev_read_addr_ptr(dev);
 	return 0;
 }
 
@@ -276,7 +287,7 @@ static const struct udevice_id rockchip_efuse_ids[] = {
 	},
 	{
 		.compatible = "rockchip,rk3328-efuse",
-		.data = (ulong)rockchip_rk3328_efuse_read,
+		.data = (ulong)&rockchip_rk3328_efuse_read,
 	},
 	{
 		.compatible = "rockchip,rk3399-efuse",

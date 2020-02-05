@@ -8,6 +8,8 @@
 #ifndef BLK_H
 #define BLK_H
 
+#include <efi.h>
+
 #ifdef CONFIG_SYS_64BIT_LBA
 typedef uint64_t lbaint_t;
 #define LBAFlength "ll"
@@ -35,6 +37,7 @@ enum if_type {
 	IF_TYPE_RKNAND,
 	IF_TYPE_SPINAND,
 	IF_TYPE_SPINOR,
+	IF_TYPE_RAMDISK,
 
 	IF_TYPE_COUNT,			/* Number of interface types */
 };
@@ -42,6 +45,17 @@ enum if_type {
 #define BLK_VEN_SIZE		40
 #define BLK_PRD_SIZE		20
 #define BLK_REV_SIZE		8
+
+/*
+ * Identifies the partition table type (ie. MBR vs GPT GUID) signature
+ */
+enum sig_type {
+	SIG_TYPE_NONE,
+	SIG_TYPE_MBR,
+	SIG_TYPE_GUID,
+
+	SIG_TYPE_COUNT			/* Number of signature types */
+};
 
 /*
  * With driver model (CONFIG_BLK) this is uclass platform data, accessible
@@ -70,6 +84,11 @@ struct blk_desc {
 	char		vendor[BLK_VEN_SIZE + 1]; /* device vendor string */
 	char		product[BLK_PRD_SIZE + 1]; /* device product number */
 	char		revision[BLK_REV_SIZE + 1]; /* firmware revision */
+	enum sig_type	sig_type;	/* Partition table signature type */
+	union {
+		uint32_t mbr_sig;	/* MBR integer signature */
+		efi_guid_t guid_sig;	/* GPT GUID Signature */
+	};
 #if CONFIG_IS_ENABLED(BLK)
 	/*
 	 * For now we have a few functions which take struct blk_desc as a

@@ -98,7 +98,7 @@ static int setdma_rx(struct dwc2_ep *ep, struct dwc2_request *req)
 
 	buf = req->req.buf + req->req.actual;
 	length = min_t(u32, req->req.length - req->req.actual,
-		       ep_num ? DMA_BUFFER_SIZE : ep->ep.maxpacket);
+		       ep_num ? DOEPT_SIZ_XFER_SIZE_MAX_EP : ep->ep.maxpacket);
 
 	ep->len = length;
 	ep->dma_buf = buf;
@@ -111,9 +111,11 @@ static int setdma_rx(struct dwc2_ep *ep, struct dwc2_request *req)
 	ctrl =  readl(&reg->out_endp[ep_num].doepctl);
 
 	invalidate_dcache_range((unsigned long) ep->dma_buf,
-				(unsigned long) ep->dma_buf + ep->len);
+				(unsigned long) ep->dma_buf +
+				ROUND(ep->len, CONFIG_SYS_CACHELINE_SIZE));
 
-	writel((unsigned int) ep->dma_buf, &reg->out_endp[ep_num].doepdma);
+	writel((unsigned int)(unsigned long)ep->dma_buf,
+	       &reg->out_endp[ep_num].doepdma);
 	writel(DOEPT_SIZ_PKT_CNT(pktcnt) | DOEPT_SIZ_XFER_SIZE(length),
 	       &reg->out_endp[ep_num].doeptsiz);
 	writel(DEPCTL_EPENA|DEPCTL_CNAK|ctrl, &reg->out_endp[ep_num].doepctl);

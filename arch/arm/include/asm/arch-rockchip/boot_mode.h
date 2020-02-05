@@ -20,6 +20,7 @@
 
 #ifndef __ASSEMBLY__
 int setup_boot_mode(void);
+void boot_devtype_init(void);
 #endif
 
 #endif

@@ -19,7 +19,7 @@
 #include <image.h>
 #include <u-boot/zlib.h>
 #include <asm/byteorder.h>
-#include <libfdt.h>
+#include <linux/libfdt.h>
 #include <mapmem.h>
 #include <fdt_support.h>
 #include <asm/bootm.h>
@@ -64,7 +64,7 @@ void arch_lmb_reserve(struct lmb *lmb)
 	/* adjust sp by 4K to be safe */
 	sp -= 4096;
 	lmb_reserve(lmb, sp,
-		    gd->bd->bi_dram[0].start + gd->bd->bi_dram[0].size - sp);
+		    gd->ram_top - sp);
 }
 
 __weak void board_quiesce_devices(void)
@@ -78,6 +78,11 @@ __weak void board_quiesce_devices(void)
  */
 static void announce_and_cleanup(int fake)
 {
+	ulong us;
+
+	us = (get_ticks() - gd->sys_start_tick) / (COUNTER_FREQUENCY / 1000000);
+	printf("Total: %ld.%ld ms\n", us / 1000, us % 1000);
+
 	printf("\nStarting kernel ...%s\n\n", fake ?
 		"(fake run for tracing)" : "");
 	bootstage_mark_name(BOOTSTAGE_ID_BOOTM_HANDOFF, "start_kernel");
@@ -90,6 +95,18 @@ static void announce_and_cleanup(int fake)
 
 #ifdef CONFIG_USB_DEVICE
 	udc_disconnect();
+#endif
+
+#ifdef CONFIG_ARCH_ROCKCHIP
+	/* Enable this flag, call putc to flush console(ns16550_serial_putc)*/
+	gd->flags |= GD_FLG_OS_RUN;
+	/*
+	 * This putc is only for calling ns16550_serial_putc() to flush console.
+	 * Console uclass framework is quite complicated, it's not easy to
+	 * flush console by privoding a new interface which must provide a
+	 * udevice here, so we use an easy way to achieve that.
+	 */
+	putc('\n');
 #endif
 
 	board_quiesce_devices();

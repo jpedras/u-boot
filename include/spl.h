@@ -23,8 +23,11 @@
 struct spl_image_info {
 	const char *name;
 	u8 os;
-	ulong load_addr;
-	ulong entry_point;
+	uintptr_t load_addr;
+	uintptr_t entry_point;
+#if CONFIG_IS_ENABLED(LOAD_FIT)
+	void *fdt_addr;
+#endif
 	u32 size;
 	u32 flags;
 	void *arg;
@@ -68,6 +71,7 @@ int spl_load_simple_fit(struct spl_image_info *spl_image,
 void preloader_console_init(void);
 u32 spl_boot_device(void);
 u32 spl_boot_mode(const u32 boot_device);
+void spl_set_bd(void);
 
 /**
  * spl_set_header_raw_uboot() - Set up a standard SPL image structure
@@ -268,17 +272,20 @@ int spl_mmc_load_image(struct spl_image_info *spl_image,
 		       struct spl_boot_device *bootdev);
 
 /**
- * spl_bl31_entry - entry function for ATF bl31
- * @entry_addr - entry address of bl31 text
+ * spl_invoke_atf - boot using an ARM trusted firmware image
  */
-void spl_bl31_entry(void *entry_addr);
+void spl_invoke_atf(struct spl_image_info *spl_image);
 
 /**
  * spl_optee_entry - entry function for optee
- * entry arg0, pagestore
- * entry arg1, (ARMv7 standard bootarg #1)
- * entry arg2, device tree address, (ARMv7 standard bootarg #2)
- * entry arg3, non-secure entry address (ARMv7 bootarg #0)
+ *
+ * args defind in op-tee project
+ * https://github.com/OP-TEE/optee_os/
+ * core/arch/arm/kernel/generic_entry_a32.S
+ * @arg0: pagestore
+ * @arg1: (ARMv7 standard bootarg #1)
+ * @arg2: device tree address, (ARMv7 standard bootarg #2)
+ * @arg3: non-secure entry address (ARMv7 bootarg #0)
  */
 void spl_optee_entry(void *arg0, void *arg1, void *arg2, void *arg3);
 

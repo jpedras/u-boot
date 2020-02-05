@@ -157,6 +157,7 @@ static void dwmci_prepare_data(struct dwmci_host *host,
 static int dwmci_data_transfer(struct dwmci_host *host, struct mmc_data *data)
 {
 	int ret = 0;
+	int reset_timeout = 100;
 	u32 timeout = 240000;
 	u32 status, ctrl, mask, size, i, len = 0;
 	u32 *buf = NULL;
@@ -185,8 +186,9 @@ static int dwmci_data_transfer(struct dwmci_host *host, struct mmc_data *data)
 
 			do {
 				status = dwmci_readl(host, DWMCI_CMD);
-				if (timeout-- < 0)
-					ret = -ETIMEDOUT;
+				if (reset_timeout-- < 0)
+					break;
+				udelay(100);
 			} while (status & DWMCI_CMD_START);
 
 			if (!host->fifo_mode) {
@@ -578,8 +580,16 @@ static int dwmci_init(struct mmc *mmc)
 
 	if (host->board_init)
 		host->board_init(host);
-
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if (host->dev_index == 0)
+		dwmci_writel(host, DWMCI_PWREN, 1);
+	else if (host->dev_index == 1)
+		dwmci_writel(host, DWMCI_PWREN, 0);
+	else
+		dwmci_writel(host, DWMCI_PWREN, 1);
+#else
 	dwmci_writel(host, DWMCI_PWREN, 1);
+#endif
 
 	if (!dwmci_wait_reset(host, DWMCI_RESET_ALL)) {
 		debug("%s[%d] Fail-reset!!\n", __func__, __LINE__);
@@ -609,7 +619,8 @@ static int dwmci_init(struct mmc *mmc)
 
 		fifo_size = dwmci_readl(host, DWMCI_FIFOTH);
 		fifo_size = ((fifo_size & RX_WMARK_MASK) >> RX_WMARK_SHIFT) + 1;
-		host->fifoth_val = MSIZE(0x2) | RX_WMARK(fifo_size / 2 - 1) |
+		host->fifoth_val = MSIZE(DWMCI_MSIZE) |
+				RX_WMARK(fifo_size / 2 - 1) |
 				TX_WMARK(fifo_size / 2);
 	}
 	dwmci_writel(host, DWMCI_FIFOTH, host->fifoth_val);
